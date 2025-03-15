@@ -32,8 +32,8 @@ class NodeSketchpadScene(QGraphicsScene):
         self._dark_line_pen = QPen(QColor(NodeEditorConfig.scene_grid_dark_line_color))
         self._dark_line_pen.setWidthF(NodeEditorConfig.scene_grid_dark_line_width)
 
-        self.addItem(JupyterGraphNode())
-        self.addItem(JupyterGraphNode())
+        self.addItem(JupyterGraphNode("Start"))
+        self.addItem(JupyterGraphNode("End"))
 
     def addItem(self, item):
         super().addItem(item)
