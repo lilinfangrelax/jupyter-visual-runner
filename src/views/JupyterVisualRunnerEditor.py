@@ -32,9 +32,6 @@ class NodeSketchpadScene(QGraphicsScene):
         self._dark_line_pen = QPen(QColor(NodeEditorConfig.scene_grid_dark_line_color))
         self._dark_line_pen.setWidthF(NodeEditorConfig.scene_grid_dark_line_width)
 
-        self.addItem(JupyterGraphNode("Start"))
-        self.addItem(JupyterGraphNode("End"))
-
     def addItem(self, item):
         super().addItem(item)
         item.setPos(0, 0)
@@ -119,6 +116,8 @@ class NodeSketchpadView(QGraphicsView):
         # When no node is selected, the entire canvas can be dragged
         if event.button() == Qt.LeftButton:
             self.leftButtonPressed(event)
+        if event.button() == Qt.RightButton:
+            self.right_click_add_node("Node", self.mapToScene(event.pos()))
         return super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
@@ -136,3 +135,8 @@ class NodeSketchpadView(QGraphicsView):
     def leftButtonReleased(self, event):
         self.setDragMode(QGraphicsView.NoDrag)
         self._drag_mode = False
+
+    def right_click_add_node(self, title, mouse_pos):
+        item = JupyterGraphNode(title)
+        self._scene.addItem(item)
+        item.setPos(mouse_pos)
