@@ -1,7 +1,8 @@
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
-from PySide6.QtGui import QBrush, QColor, QPen, QPainter
-from PySide6.QtCore import Qt, QLine, QEvent
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsLineItem
+from PySide6.QtGui import QBrush, QColor, QPen, QPainter, QTransform
+from PySide6.QtCore import Qt, QLine, QEvent, QLineF
 from src.config.NodeEditorConfig import *
+from src.views.ConnectionItem import ConnectionItem
 import PySide6
 import math
 
@@ -31,6 +32,7 @@ class NodeSketchpadScene(QGraphicsScene):
 
         self._dark_line_pen = QPen(QColor(NodeEditorConfig.scene_grid_dark_line_color))
         self._dark_line_pen.setWidthF(NodeEditorConfig.scene_grid_dark_line_width)
+
 
     def addItem(self, item):
         super().addItem(item)
@@ -120,7 +122,10 @@ class NodeSketchpadView(QGraphicsView):
             self.right_click_add_node("Node", self.mapToScene(event.pos()))
         return super().mousePressEvent(event)
 
-    def mouseReleaseEvent(self, event):
+
+
+        self._drag_mode = None
+        super().mouseReleaseEvent(event)
         if event.button() == Qt.LeftButton:
             self.leftButtonReleased(event)
         return super().mouseReleaseEvent(event)

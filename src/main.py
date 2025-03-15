@@ -5,6 +5,8 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QDockWidget, QMainWindow, QListWidget, QTabWidget, QTextEdit, QFrame, QWidget, \
     QVBoxLayout, QApplication
+
+from src.views.ConnectionItem import ConnectionItem
 from src.views.JupyterVisualRunnerEditor import *
 
 
@@ -55,6 +57,13 @@ class JupyterVisualRunner(QMainWindow):
         layout3.setContentsMargins(0, 0, 0, 0)
         layout3.addWidget(self.view3)
         self.center_tabs.addTab(tab_container3, "Scene2")
+
+        rect1 = JupyterGraphNode("Source")
+        rect2 = JupyterGraphNode("Destination")
+        self.scene2.addItem(rect1)
+        self.scene2.addItem(rect2)
+        connection = ConnectionItem(rect1, rect2)
+        self.scene2.addItem(connection)
 
 
 
