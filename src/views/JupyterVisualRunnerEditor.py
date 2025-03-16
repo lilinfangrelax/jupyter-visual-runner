@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsLineItem
 from PySide6.QtGui import QBrush, QColor, QPen, QPainter, QTransform
 from PySide6.QtCore import Qt, QLine, QEvent, QLineF
 from src.config.NodeEditorConfig import *
+from src.utils.time_util import get_timestamp_str_millisecond
 from src.views.ConnectionItem import ConnectionItem
 import PySide6
 import math
@@ -89,6 +90,7 @@ class NodeSketchpadScene(QGraphicsScene):
 class NodeSketchpadView(QGraphicsView):
     def __init__(self, scene, parent=None):
         super().__init__(parent)
+        self.father = parent
 
         self._scene = scene
         self.setScene(self._scene)
@@ -125,7 +127,7 @@ class NodeSketchpadView(QGraphicsView):
         if event.button() == Qt.LeftButton:
             self.leftButtonPressed(event)
         if event.button() == Qt.RightButton:
-            self.right_click_add_node("Node", self.mapToScene(event.pos()))
+            self.right_click_add_node(f"# Node {get_timestamp_str_millisecond()}", self.mapToScene(event.pos()))
         return super().mousePressEvent(event)
 
 
@@ -148,7 +150,13 @@ class NodeSketchpadView(QGraphicsView):
         self._drag_mode = False
 
     def right_click_add_node(self, title, mouse_pos):
-        item = JupyterGraphNode(title, "")
+        item = JupyterGraphNode(title, title)
+        # add click event
+        father = self.father
+        if self.father is not None:
+            item.signals.nodeClicked.connect(self.father.update_widget)
         self._scene.addItem(item)
         item.setPos(mouse_pos)
+        item.data_model.x = mouse_pos.x()
+        item.data_model.y = mouse_pos.y()
 

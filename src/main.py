@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QDockWidget, QMainWindow, QListWidget, QTabWidget,
 
 from src.controllers.graph_execute_controller import GraphExecuteController
 from src.models.JupyterNodeModel import JupyterNodeModel
-from src.utils.ipynb_file_util import load_notebook, save_notebook
+from src.utils.ipynb_file_util import load_notebook, save_notebook, add_cell, remove_cell
 from src.views.CustomTab import CustomTab
 from src.views.JupyterVisualRunnerEditor import *
 
@@ -66,6 +66,7 @@ class JupyterVisualRunner(QMainWindow):
             items_data = {}
         graph_nodes_table = {}
         nodes = []
+        print("nodes len: ", len(notebook.cells))
         for cell in notebook.cells:
             if cell.cell_type == 'code':
                 node_model = JupyterNodeModel(cell.source.split('\n')[0], cell.source)
@@ -117,6 +118,37 @@ class JupyterVisualRunner(QMainWindow):
             # Extract data_model from the JupyterGraphNode in the scene
             items_data = {item._title:item.to_dict() for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
             notebook.metadata["scene_data"] = items_data
+
+            notebook_item_titles = []
+            for cell in notebook.cells:
+                if cell.cell_type == 'code':
+                    notebook_item_titles.append(cell.source.split('\n')[0])
+
+            scene_item_titles = []
+            for item in current_widget.scene.items():
+                if isinstance(item, JupyterGraphNode):
+                    scene_item_titles.append(item._title)
+            # Update the scene data
+            for item in current_widget.scene.items():
+                if isinstance(item, JupyterGraphNode):
+                    # Add New Node
+                    title = item._title
+                    if item._title not in notebook_item_titles:
+                        # Add new cell
+                        add_cell(notebook, item.data_model.code)
+                        notebook_item_titles.append(title)
+
+            # Remove the deleted node
+            for title in notebook_item_titles:
+                if title not in scene_item_titles:
+                    remove_cell(notebook, notebook_item_titles.index(title))
+
+
+
+            # Update the notebook
+            # notebook.metadata["last_modified"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # notebook.metadata["last_modified_by"] = "Jupyter Visual Runner"
+
             save_notebook(notebook, current_widget.notebook_path)
 
     def run_tab(self):
