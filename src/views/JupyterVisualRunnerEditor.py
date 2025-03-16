@@ -77,7 +77,14 @@ class NodeSketchpadScene(QGraphicsScene):
                 lines.append(line)
 
         return lines, dark_lines
-
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Delete:
+            for item in self.selectedItems():
+                if isinstance(item, ConnectionItem):
+                    item._disconnect()
+                elif isinstance(item, JupyterGraphNode):
+                    item.remove()
+        super().keyPressEvent(event)
 
 class NodeSketchpadView(QGraphicsView):
     def __init__(self, scene, parent=None):
@@ -144,3 +151,4 @@ class NodeSketchpadView(QGraphicsView):
         item = JupyterGraphNode(title, "")
         self._scene.addItem(item)
         item.setPos(mouse_pos)
+

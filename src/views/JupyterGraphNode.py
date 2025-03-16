@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem, QGraphicsLineItem
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem, QGraphicsLineItem, QMessageBox
 from PySide6.QtGui import QBrush, QPen, QColor, QPolygonF, QPainterPath, QFont, QTransform
 from PySide6.QtCore import Qt, QRectF, QLineF, Signal
 import uuid
@@ -49,11 +49,18 @@ class JupyterGraphNode(QGraphicsItem):
 
         self.drag_mode = None  # 'move' or 'connect'
         self.temp_connection = None
+        self.connections = []
 
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.ItemIsFocusable, True)
 
+    def remove_connection(self, connection):
+        if connection in self.connections:
+            self.connections.remove(connection)
+
+    def add_connection(self, connection):
+        self.connections.append(connection)
 
     def addObserver(self, observer):
         self.observers.append(observer)
@@ -114,6 +121,7 @@ class JupyterGraphNode(QGraphicsItem):
             self.temp_connection = QGraphicsLineItem(
                 QLineF(self.sceneBoundingRect().center(), event.scenePos()))
             self.temp_connection.setPen(QPen(Qt.white, 2, Qt.DashLine))
+
             self.scene().addItem(self.temp_connection)
         else:
             if event.button() == Qt.LeftButton:
@@ -146,6 +154,9 @@ class JupyterGraphNode(QGraphicsItem):
                 from src.views.ConnectionItem import ConnectionItem
                 connection = ConnectionItem(self, target_item)
                 self.scene().addItem(connection)
+                self.connections.append(connection)
+                target_item.connections.append(connection)
+
 
         self.drag_mode = None
         super().mouseReleaseEvent(event)
@@ -178,3 +189,17 @@ class JupyterGraphNode(QGraphicsItem):
         self._result_text = text
         self._result_textitem.setPlainText(self._result_text)
         self._result_textitem.update()
+
+    def remove(self):
+        confirm = QMessageBox.question(
+            None, "Delete Node", "Are you sure you want to delete this node and all its connections?？",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        for conn in self.connections.copy():
+            conn._disconnect()
+
+        if self.scene():
+            self.scene().removeItem(self)

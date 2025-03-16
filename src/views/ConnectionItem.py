@@ -20,6 +20,16 @@ class ConnectionItem(QGraphicsItem):
         # Listen for changes in the position of the source and target
         self.source.addObserver(self)
         self.destination.addObserver(self)
+        self.setFlag(QGraphicsItem.ItemIsSelectable)  # 允许选中
+        self.setFlag(QGraphicsItem.ItemIsFocusable)    # 接收键盘事件
+
+    def _disconnect(self):
+        # 通知节点移除连接
+        self.source.remove_connection(self)
+        self.destination.remove_connection(self)
+        # 从场景中移除自身
+        if self.scene():
+            self.scene().removeItem(self)
 
     def addObserver(self, item):
         item.installSceneEventFilter(self)
@@ -67,3 +77,12 @@ class ConnectionItem(QGraphicsItem):
         arrow_head.append(arrow_p2)
         painter.setBrush(NodeEditorConfig.connection_line_arrow_color)
         painter.drawPolygon(arrow_head)
+
+        if self.isSelected():
+            painter.setPen(NodeEditorConfig.connection_line_selected_color)
+            painter.drawLine(line)
+            painter.drawPolygon(arrow_head)
+        else:
+            painter.setPen(NodeEditorConfig.connection_line_color)
+            painter.drawLine(line)
+            painter.drawPolygon(arrow_head)

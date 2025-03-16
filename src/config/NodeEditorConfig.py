@@ -37,3 +37,4 @@ class NodeEditorConfig:
     connection_line_color =  QColor("#aaababab")
     connection_line_arrow_size = 20
     connection_line_arrow_color = connection_line_color
+    connection_line_selected_color = QColor("#aaffee00")
