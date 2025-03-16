@@ -9,6 +9,7 @@ class JupyterNodeModel(object):
         self.y = 0
         self.uuid = None
         self.msg_id = ""
+        self.tab_id = ""
         self.last_status = ""
         super().__init__()
 

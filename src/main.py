@@ -1,5 +1,7 @@
 import datetime
 import sys
+import uuid
+from pathlib import Path
 
 from PySide6 import QtGui, QtWidgets, QtCore
 from PySide6.QtCore import QSettings
@@ -10,6 +12,7 @@ from PySide6.QtWidgets import QDockWidget, QMainWindow, QListWidget, QTabWidget,
 from src.controllers.graph_execute_controller import GraphExecuteController
 from src.models.JupyterNodeModel import JupyterNodeModel
 from src.utils.ipynb_file_util import load_notebook, save_notebook
+from src.views.CustomTab import CustomTab
 from src.views.JupyterVisualRunnerEditor import *
 
 
@@ -27,29 +30,41 @@ class JupyterVisualRunner(QMainWindow):
 
     # MVP: 200 line to restructure the code
     def add_tab(self):
-        self.scene2 = NodeSketchpadScene()
-        self.view2 = NodeSketchpadView(self.scene2, self)
-        self.view2.setAlignment(Qt.AlignCenter)
-        tab_container = QWidget()
+        """ Add a new tab"""
+        # 1. Open file chooser to get the .ipynb file path
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open File", "", "Jupyter Notebook (*.ipynb)")
+        if file_path == '':
+            return
+
+        # 2. Init tab
+        tab_id = str(uuid.uuid1())
+        notebook_dir = Path(file_path).parent.resolve()
+        scene = NodeSketchpadScene()
+        view = NodeSketchpadView(scene, self)
+        view.setAlignment(Qt.AlignCenter)
+        title = file_path.split('/')[-1]
+        tab_container = CustomTab(title, tab_id, notebook_dir, file_path, scene, view)
         layout = QVBoxLayout(tab_container)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.view2)
-        self.center_tabs.addTab(tab_container, "Scene1")
+        layout.addWidget(view)
+        self.center_tabs.addTab(tab_container, title)
 
-        notebook = load_notebook('D:\\Dev\\GitHub\\ideas\\scripts\\获取邮箱账号注册过的所有网站\\获取邮箱账号注册过的所有网站.ipynb')
-
+        # 3. Load the .ipynb file
+        notebook = load_notebook(file_path)
         if notebook.metadata.get("scene_data"):
             items_data = notebook.metadata.get("scene_data")
         else:
             items_data = {}
-
         graph_nodes_table = {}
         nodes = []
         for cell in notebook.cells:
             if cell.cell_type == 'code':
                 node_model = JupyterNodeModel(cell.source.split('\n')[0], cell.source)
+                node_model.tab_id = tab_id
                 graph_nodes_table[node_model.title] = []
                 nodes.append(node_model)
+
+        # 4. Draw the graph
         graph_nodes = {}
         for index, node in enumerate(nodes):
             if index == len(nodes) - 1:
@@ -66,81 +81,104 @@ class JupyterVisualRunner(QMainWindow):
                 rect2 = JupyterGraphNode(nodes[index+1].title, nodes[index+1].code)
                 graph_nodes[rect2._title] = rect2
                 rect2.setPos((index+1)*300, 0)
-            self.scene2.addItem(rect1)
-            self.scene2.addItem(rect2)
+            scene.addItem(rect1)
+            scene.addItem(rect2)
+
+        # 5. Draw the connections
         for node in nodes:
             if node.title in items_data.keys():
                 graph_nodes[node.title].setPos(items_data[node.title].x, items_data[node.title].y)
                 if items_data[node.title].children != []:
                     for child_title in items_data[node.title].children:
                         connection = ConnectionItem(graph_nodes[node.title], graph_nodes[child_title])
-                        self.scene2.addItem(connection)
+                        scene.addItem(connection)
 
     def save_tab(self):
-        notebook = load_notebook('D:\\Dev\\GitHub\\ideas\\scripts\\获取邮箱账号注册过的所有网站\\获取邮箱账号注册过的所有网站.ipynb')
-        # Extract data_model from the JupyterGraphNode in the scene
-        items_data = {item._title:item.to_dict() for item in self.scene2.items() if isinstance(item, JupyterGraphNode)}
-        notebook.metadata["scene_data"] = items_data
-        save_notebook(notebook, 'D:\\Dev\\GitHub\\ideas\\scripts\\获取邮箱账号注册过的所有网站\\获取邮箱账号注册过的所有网站.ipynb')
+        current_widget = self.center_tabs.currentWidget()
+        if current_widget is None:
+            return
+        if isinstance(current_widget, CustomTab):
+            notebook = load_notebook(current_widget.notebook_path)
+            # Extract data_model from the JupyterGraphNode in the scene
+            items_data = {item._title:item.to_dict() for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
+            notebook.metadata["scene_data"] = items_data
+            save_notebook(notebook, current_widget.notebook_path)
 
     def run_tab(self):
-        graph = {item.data_model.title:item.data_model.children for item in self.scene2.items() if isinstance(item, JupyterGraphNode)}
-        nodes = {item.data_model.title:[item.data_model.code, item.data_model.uuid] for item in self.scene2.items() if isinstance(item, JupyterGraphNode)}
+        current_widget = self.center_tabs.currentWidget()
+        if current_widget is None:
+            return
+        if isinstance(current_widget, CustomTab):
+            graph = {item.data_model.title:item.data_model.children for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
+            nodes = {item.data_model.title:[item.data_model.code, item.data_model.uuid] for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
 
-        for item in self.scene2.items():
-            if isinstance(item, JupyterGraphNode):
-                item.set_default_color()
-        if self.thread1 is not None:
-            self.thread1.quit()
-            self.thread1.wait()
-        self.thread1 = QtCore.QThread()
-        self.worker = GraphExecuteController(graph, nodes)
-        self.worker.moveToThread(self.thread1)
-        self.worker.executor_process.connect(self.update_process)
-        self.worker.executor_binding.connect(self.bind_item_msg_id)
-        self.thread1.started.connect(self.worker.execute_all)
-        self.thread1.start()
+            # Clear the scene
+            for item in current_widget.scene.items():
+                if isinstance(item, JupyterGraphNode):
+                    item.set_default_color()
+            if self.thread1 is not None:
+                self.thread1.quit()
+                self.thread1.wait()
+
+            self.thread1 = QtCore.QThread()
+            self.worker = GraphExecuteController(graph, nodes, current_widget.notebook_dir, current_widget.tab_id)
+            self.worker.moveToThread(self.thread1)
+            self.worker.executor_process.connect(self.update_process)
+            self.worker.executor_binding.connect(self.bind_item_msg_id)
+            self.thread1.started.connect(self.worker.execute_all)
+            self.thread1.start()
 
     def bind_item_msg_id(self, binding):
         msg_id = binding.split(":")[0]
-        item_id = binding.split(":")[1]
+        tab_id = binding.split(":")[1].split("#")[0]
+        item_id = binding.split(":")[1].split("#")[1]
         self.logger_widget.append(binding)
-        for item in self.scene2.items():
-            if isinstance(item, JupyterGraphNode):
-                if item.data_model.uuid == item_id:
-                    item.data_model.msg_id = msg_id
+        for index in range(self.center_tabs.count()):
+            tab_widget = self.center_tabs.widget(index)
+            if getattr(tab_widget, 'tab_id', None) == tab_id:
+                    for item in tab_widget.scene.items():
+                        if isinstance(item, JupyterGraphNode):
+                            if item.data_model.uuid == item_id:
+                                item.data_model.msg_id = msg_id
 
     def update_process(self, process):
-        for item in self.scene2.items():
-            if isinstance(item, JupyterGraphNode):
-                if item.data_model.msg_id == process.split(":")[0]:
-                    status_str = process.replace(f"{item.data_model.msg_id}:", "")
-                    if status_str == "status:busy":
-                        color = QColor('yellow')
-                        item.set_color(color)
-                        item.data_model.last_status = "status:busy"
-                    if status_str.startswith("execute_input"):
-                        color = QColor('yellow')
-                        item.set_color(color)
-                        item.data_model.last_status = "execute_input"
-                    elif status_str == "status:idle" and item.data_model.last_status == "status:busy":
-                        return
-                    elif status_str == "status:idle" and item.data_model.last_status != "error":
-                        color = QColor('green')
-                        item.set_color(color)
-                        item.data_model.last_status = "idle"
-                    elif status_str.startswith("error"):
-                        color = QColor('red')
-                        item.set_color(color)
-                        item.data_model.last_status = "error"
-                    elif status_str.startswith("stream"):
-                        item.data_model.last_status = "stream"
+        process_msg_id = process.split(":")[0].split("#")[0]
+        tab_id = process.split(":")[0].split("#")[1]
+        print(process)
+        for index in range(self.center_tabs.count()):
+            tab_widget = self.center_tabs.widget(index)
+            if getattr(tab_widget, 'tab_id', None) == tab_id:
+                    for item in tab_widget.scene.items():
+                        if isinstance(item, JupyterGraphNode):
+                            if item.data_model.msg_id == process_msg_id:
+                                status_str = process.replace(f"{process_msg_id}#{tab_id}:", "")
+                                print(status_str)
+                                if status_str == "status:busy":
+                                    color = QColor('yellow')
+                                    item.set_color(color)
+                                    item.data_model.last_status = "status:busy"
+                                if status_str.startswith("execute_input"):
+                                    color = QColor('yellow')
+                                    item.set_color(color)
+                                    item.data_model.last_status = "execute_input"
+                                elif status_str == "status:idle" and item.data_model.last_status == "status:busy":
+                                    return
+                                elif status_str == "status:idle" and item.data_model.last_status != "error":
+                                    color = QColor('green')
+                                    item.set_color(color)
+                                    item.data_model.last_status = "idle"
+                                elif status_str.startswith("error"):
+                                    color = QColor('red')
+                                    item.set_color(color)
+                                    item.data_model.last_status = "error"
+                                elif status_str.startswith("stream"):
+                                    item.data_model.last_status = "stream"
 
 
 
 
-                    print(f"{datetime.datetime.now()} {item.data_model.title}: {status_str}")
-        self.logger_widget.append(process)
+                                print(f"{datetime.datetime.now()} {item.data_model.title}: {status_str}")
+                    self.logger_widget.append(process)
 
 
     def setup_node_sketchpad(self):
@@ -152,15 +190,7 @@ class JupyterVisualRunner(QMainWindow):
         tab_container = QWidget()
         layout = QVBoxLayout(tab_container)
         layout.setContentsMargins(0, 0, 0, 0)
-        add_tab_button = QtWidgets.QPushButton("Add Tab")
-        save_tab_button = QtWidgets.QPushButton("Save Tab")
-        run_button = QtWidgets.QPushButton("Run")
-        layout.addWidget(add_tab_button)
-        layout.addWidget(save_tab_button)
-        layout.addWidget(run_button)
-        add_tab_button.clicked.connect(self.add_tab)
-        save_tab_button.clicked.connect(self.save_tab)
-        run_button.clicked.connect(self.run_tab)
+
         self.center_tabs.addTab(tab_container, "Homepage")
         self.setCentralWidget(self.center_tabs)
 
@@ -186,6 +216,23 @@ class JupyterVisualRunner(QMainWindow):
         dock3.setWidget(self.logger_widget)
         dock3.setMinimumHeight(150)
         self.addDockWidget(Qt.BottomDockWidgetArea, dock3)
+
+        button_group = QDockWidget("Button Group", self)
+        button_group_widget = QWidget()
+        button_group.setWidget(button_group_widget)
+        button_group_layout = QVBoxLayout(button_group_widget)
+        button_group_layout.setContentsMargins(0, 0, 0, 0)
+        add_tab_button = QtWidgets.QPushButton("Add Tab")
+        save_tab_button = QtWidgets.QPushButton("Save Tab")
+        run_button = QtWidgets.QPushButton("Run")
+        button_group_layout.addWidget(add_tab_button)
+        button_group_layout.addWidget(save_tab_button)
+        button_group_layout.addWidget(run_button)
+        add_tab_button.clicked.connect(self.add_tab)
+        save_tab_button.clicked.connect(self.save_tab)
+        run_button.clicked.connect(self.run_tab)
+        self.addDockWidget(Qt.BottomDockWidgetArea, button_group)
+
 
         # Temporarily hide this widget
         # dock4 = QDockWidget("Result", self)

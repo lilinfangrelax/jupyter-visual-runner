@@ -11,17 +11,22 @@ class GraphExecuteController(QObject):
     executor_process = Signal(str)
     executor_binding = Signal(str)
     executor_stopped = Signal()
-    def __init__(self, graph: dict, nodes: dict, parent=None):
+
+    def __init__(self, graph: dict, nodes: dict,notebook_dir, tab_id, parent=None):
         super().__init__(parent)
         self.graph = graph
         self.nodes = nodes
+        self.notebook_dir = notebook_dir
         self.kernel_manager = None
         self.kernel_client = None
+        self.tab_id = tab_id
 
     def start(self):
         self.kernel_manager = KernelManager(kernel_name="python3")
         self.kernel_manager.start_kernel()
         self.kernel_client = self.kernel_manager.client()
+        self.kernel_client.load_connection_file()
+        self.kernel_client.execute(f"%cd {self.notebook_dir}")
         self.kernel_client.start_channels()
         self.kernel_client.wait_for_ready()
 
@@ -32,7 +37,7 @@ class GraphExecuteController(QObject):
         print(topo_order)
         # 2. Execute
         for node_id in topo_order:
-            self.execute(self.nodes[node_id][0], self.nodes[node_id][1])
+            self.execute(self.nodes[node_id][0], self.nodes[node_id][1], self.tab_id)
         # self.shutdown()
         # self.executor_stopped.emit()
 
@@ -43,9 +48,9 @@ class GraphExecuteController(QObject):
             if order_id is not None:
                 self.execute(self.nodes[order_id])
 
-    def execute(self, code, uuid):
+    def execute(self, code, uuid, tab_id):
         msg_id = self.kernel_client.execute(code)
-        self.executor_binding.emit(f"{msg_id}:{uuid}")
+        self.executor_binding.emit(f"{msg_id}:{tab_id}#{uuid}")
         while True:
             try:
                 msg = self.kernel_client.get_iopub_msg(timeout=0.1)
@@ -54,15 +59,15 @@ class GraphExecuteController(QObject):
                 content = msg["content"]
                 parent_msg_id = msg["parent_header"]["msg_id"]
                 if msg["msg_type"] == "stream" and content["name"] == "stdout":
-                    self.executor_process.emit(f"{parent_msg_id}:stream:{content['text']}")
+                    self.executor_process.emit(f"{parent_msg_id}#{tab_id}:stream:{content['text']}")
                     # break
                 elif msg["msg_type"] == "error":
-                    self.executor_process.emit(f"{parent_msg_id}:error_:{content['ename']}")
+                    self.executor_process.emit(f"{parent_msg_id}#{tab_id}:error_:{content['ename']}")
                     # break
                 elif msg["msg_type"] == "execute_input":
-                    self.executor_process.emit(f"{parent_msg_id}:execute_input: content['code']")
+                    self.executor_process.emit(f"{parent_msg_id}#{tab_id}:execute_input: content['code']")
                 elif msg["msg_type"] == "status":
-                    self.executor_process.emit(f"{parent_msg_id}:status:{content['execution_state']}")
+                    self.executor_process.emit(f"{parent_msg_id}#{tab_id}:status:{content['execution_state']}")
                     if content["execution_state"] == "idle" and msg_id == msg["parent_header"]["msg_id"]:
                         break
 
