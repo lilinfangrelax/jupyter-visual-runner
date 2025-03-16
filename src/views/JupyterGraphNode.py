@@ -3,12 +3,14 @@ from PySide6.QtGui import QBrush, QPen, QColor, QPolygonF, QPainterPath, QFont, 
 from PySide6.QtCore import Qt, QRectF, QLineF
 
 from src.config.NodeEditorConfig import NodeEditorConfig
+from src.models.JupyterNodeModel import JupyterNodeModel
 from src.views.ConnectionItem import ConnectionItem
 
 
 class JupyterGraphNode(QGraphicsItem):
-    def __init__(self, title,  parent=None):
+    def __init__(self, title, code="", parent=None):
         super().__init__(parent)
+        self.data_model = JupyterNodeModel(title, code)
 
         self._node_width = NodeEditorConfig.node_width
         self._node_height = NodeEditorConfig.node_height
@@ -121,3 +123,9 @@ class JupyterGraphNode(QGraphicsItem):
 
         self.drag_mode = None
         super().mouseReleaseEvent(event)
+
+    def to_dict(self):
+        self.data_model.title = self._title
+        self.data_model.x  = self.pos().x()
+        self.data_model.y  = self.pos().y()
+        return self.data_model.to_dict()

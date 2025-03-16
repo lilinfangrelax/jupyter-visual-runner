@@ -6,7 +6,8 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QDockWidget, QMainWindow, QListWidget, QTabWidget, QTextEdit, QFrame, QWidget, \
     QVBoxLayout, QApplication
 
-from src.views.ConnectionItem import ConnectionItem
+from src.models.JupyterNodeModel import JupyterNodeModel
+from src.utils.ipynb_file_util import load_notebook, save_notebook
 from src.views.JupyterVisualRunnerEditor import *
 
 
@@ -14,19 +15,70 @@ class JupyterVisualRunner(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setup_node_sketchpad()
-        self.showEvent = self.on_show
         self.center()
-
-    def on_show(self, event):
-        # 在窗口显示后调用 fitInView
-        # self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
-        # self.view.scale(80,80)
-        pass
 
     def closeEvent(self, event):
         # Save QDockWidget state
         settings = QSettings("Jupyter Visual Runner", "Jupyter Visual Runner")
         settings.setValue('windowState', self.saveState())
+
+    def add_tab(self):
+        self.scene2 = NodeSketchpadScene()
+        self.view2 = NodeSketchpadView(self.scene2, self)
+        self.view2.setAlignment(Qt.AlignCenter)
+        tab_container = QWidget()
+        layout = QVBoxLayout(tab_container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.view2)
+        self.center_tabs.addTab(tab_container, "Scene1")
+
+        notebook = load_notebook('D:\\Dev\\GitHub\\ideas\\scripts\\获取邮箱账号注册过的所有网站\\获取邮箱账号注册过的所有网站.ipynb')
+
+        if notebook.metadata.get("scene_data"):
+            items_data = notebook.metadata.get("scene_data")
+        else:
+            items_data = {}
+
+        graph_nodes_table = {}
+        nodes = []
+        for cell in notebook.cells:
+            if cell.cell_type == 'code':
+                node_model = JupyterNodeModel(cell.source.split('\n')[0], cell.source)
+                graph_nodes_table[node_model.title] = []
+                nodes.append(node_model)
+        graph_nodes = {}
+        for index, node in enumerate(nodes):
+            if index == len(nodes) - 1:
+                break
+            if node.title in graph_nodes.keys():
+                rect1 = graph_nodes[nodes[index].title]
+            else:
+                rect1 = JupyterGraphNode(nodes[index].title)
+                graph_nodes[rect1._title] = rect1
+                rect1.setPos(index*0, 0)
+            if nodes[index+1].title in graph_nodes.keys():
+                rect2 = graph_nodes[nodes[index+1].title]
+            else:
+                rect2 = JupyterGraphNode(nodes[index+1].title)
+                graph_nodes[rect2._title] = rect2
+                rect2.setPos((index+1)*300, 0)
+            self.scene2.addItem(rect1)
+            self.scene2.addItem(rect2)
+        for node in nodes:
+            if node.title in items_data.keys():
+                graph_nodes[node.title].setPos(items_data[node.title].x, items_data[node.title].y)
+                if items_data[node.title].children != []:
+                    for child in items_data[node.title].children:
+                        connection = ConnectionItem(graph_nodes[node.title], graph_nodes[child.title])
+                        self.scene2.addItem(connection)
+
+    def save_tab(self):
+        notebook = load_notebook('D:\\Dev\\GitHub\\ideas\\scripts\\获取邮箱账号注册过的所有网站\\获取邮箱账号注册过的所有网站.ipynb')
+        # Extract data_model from the JupyterGraphNode in the scene
+        items_data = {item._title:item.to_dict() for item in self.scene2.items() if isinstance(item, JupyterGraphNode)}
+        notebook.metadata["scene_data"] = items_data
+        save_notebook(notebook, 'D:\\Dev\\GitHub\\ideas\\scripts\\获取邮箱账号注册过的所有网站\\获取邮箱账号注册过的所有网站.ipynb')
+
 
     def setup_node_sketchpad(self):
         self.setWindowTitle("Jupyter Visual Runner")
@@ -37,34 +89,14 @@ class JupyterVisualRunner(QMainWindow):
         tab_container = QWidget()
         layout = QVBoxLayout(tab_container)
         layout.setContentsMargins(0, 0, 0, 0)
+        add_tab_button = QtWidgets.QPushButton("Add Tab")
+        save_tab_button = QtWidgets.QPushButton("Save Tab")
+        layout.addWidget(add_tab_button)
+        layout.addWidget(save_tab_button)
+        add_tab_button.clicked.connect(self.add_tab)
+        save_tab_button.clicked.connect(self.save_tab)
         self.center_tabs.addTab(tab_container, "Homepage")
         self.setCentralWidget(self.center_tabs)
-
-        self.scene2 = NodeSketchpadScene()
-        self.view2 = NodeSketchpadView(self.scene2, self)
-        self.view2.setAlignment(Qt.AlignCenter)
-        tab_container2 = QWidget()
-        layout2 = QVBoxLayout(tab_container2)
-        layout2.setContentsMargins(0, 0, 0, 0)
-        layout2.addWidget(self.view2)
-        self.center_tabs.addTab(tab_container2, "Scene1")
-        
-        self.scene3 = NodeSketchpadScene()
-        self.view3 = NodeSketchpadView(self.scene3, self)
-        self.view3.setAlignment(Qt.AlignCenter)
-        tab_container3 = QWidget()
-        layout3 = QVBoxLayout(tab_container3)
-        layout3.setContentsMargins(0, 0, 0, 0)
-        layout3.addWidget(self.view3)
-        self.center_tabs.addTab(tab_container3, "Scene2")
-
-        rect1 = JupyterGraphNode("Source")
-        rect2 = JupyterGraphNode("Destination")
-        self.scene2.addItem(rect1)
-        self.scene2.addItem(rect2)
-        connection = ConnectionItem(rect1, rect2)
-        self.scene2.addItem(connection)
-
 
 
         dock1 = QDockWidget("Browser", self)

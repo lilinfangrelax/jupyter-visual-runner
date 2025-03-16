@@ -36,7 +36,6 @@ class NodeSketchpadScene(QGraphicsScene):
 
     def addItem(self, item):
         super().addItem(item)
-        item.setPos(0, 0)
 
     def drawBackground(self, painter: PySide6.QtGui.QPainter, rect):
         super().drawBackground(painter, rect)

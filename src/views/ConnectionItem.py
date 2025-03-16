@@ -12,6 +12,8 @@ class ConnectionItem(QGraphicsItem):
         super().__init__()
         self.source = source
         self.destination = destination
+        self.source.data_model.children.append(self.destination)
+
         self.setZValue(-1)
 
         # Listen for changes in the position of the source and target
