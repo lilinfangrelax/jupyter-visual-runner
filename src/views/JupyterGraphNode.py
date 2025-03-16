@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem, QGraphicsLineIte
 from PySide6.QtGui import QBrush, QPen, QColor, QPolygonF, QPainterPath, QFont, QTransform
 from PySide6.QtCore import Qt, QRectF, QLineF
 
+from src.config.NodeEditorConfig import NodeEditorConfig
 from src.views.ConnectionItem import ConnectionItem
 
 
@@ -9,23 +10,24 @@ class JupyterGraphNode(QGraphicsItem):
     def __init__(self, title,  parent=None):
         super().__init__(parent)
 
-        self._node_width = 160
-        self._node_height = 80
-        self._node_radius = 10
+        self._node_width = NodeEditorConfig.node_width
+        self._node_height = NodeEditorConfig.node_height
+        self._node_radius = NodeEditorConfig.node_radius
         self.observers = []
 
-        self._pen = QPen(QColor("#151515"))
-        self._selected_pen = QPen(QColor("#aaffee00"))
-        self._background_color = QBrush(QColor("#151515"))
-
+        # Create Node pen and brush
+        self._pen =  NodeEditorConfig.node_default_pen
+        self._selected_pen = NodeEditorConfig.node_selected_pen
+        self._background_color = NodeEditorConfig.node_background_color
         self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
 
+        # Create title
         self._title = title
-        self._title_color = Qt.white
-        self._title_font = QFont('Consolas', 13)
-        self._title_height = 30
-        self._title_padding = 3
-        self._title_brush_back = QBrush(QColor("#aa00003f"))
+        self._title_color = NodeEditorConfig.node_title_color
+        self._title_font = NodeEditorConfig.node_title_font
+        self._title_height = NodeEditorConfig.node_title_height
+        self._title_padding = NodeEditorConfig.node_title_padding
+        self._title_brush_back = NodeEditorConfig.node_title_brush_back
         self.init_title()
 
         self.drag_mode = None  # 'move' or 'connect'
@@ -35,6 +37,7 @@ class JupyterGraphNode(QGraphicsItem):
         self.observers.append(observer)
 
     def itemChange(self, change, value):
+        """ ItemChange EventHandle"""
         if change == QGraphicsItem.ItemPositionHasChanged:
             for observer in self.observers:
                 observer.update()
@@ -56,13 +59,13 @@ class JupyterGraphNode(QGraphicsItem):
         title_outline = QPainterPath()
         title_outline.setFillRule(Qt.WindingFill)
         title_outline.addRoundedRect(-self._node_width / 2, -self._node_height / 2, self._node_width, self._title_height, self._node_radius, self._node_radius)
+
+        # Draw a small filled rectangle at the lower left and lower right corners of the title.
         title_outline.addRect(-self._node_width / 2 + self._node_width-self._node_radius , -self._node_height / 2 + self._title_height - self._node_radius, self._node_radius, self._node_radius)
         title_outline.addRect(-self._node_width / 2 , -self._node_height / 2 + self._title_height - self._node_radius, self._node_radius, self._node_radius)
         painter.setPen(Qt.NoPen)
         painter.setBrush(self._title_brush_back)
-
         painter.drawPath(title_outline)
-
 
         if self.isSelected():
             painter.setPen(self._selected_pen)
@@ -72,7 +75,6 @@ class JupyterGraphNode(QGraphicsItem):
             painter.setPen(self._pen)
             painter.setBrush(Qt.NoBrush)
             painter.drawPath(node_outline)
-        pass
 
     def init_title(self):
         self._titleitem = QGraphicsTextItem(self)
@@ -80,38 +82,37 @@ class JupyterGraphNode(QGraphicsItem):
         self._titleitem.setFont(self._title_font)
         self._titleitem.setDefaultTextColor(self._title_color)
         self._titleitem.setPos(-self._node_width / 2 + self._title_padding, -self._node_height / 2 + self._title_padding)
-        # self._titleitem.setPos(self._title_padding, self._title_padding)
 
     def mousePressEvent(self, event):
-        # 通过 Ctrl 键区分模式
+        # Differentiate between modes using the Ctrl key
         if event.modifiers() == Qt.ControlModifier:
-            # 连接模式：开始创建临时线
+            # Connect mode: Start creating a temporary line
             self.drag_mode = 'connect'
             self.temp_connection = QGraphicsLineItem(
                 QLineF(self.sceneBoundingRect().center(), event.scenePos()))
             self.temp_connection.setPen(QPen(Qt.white, 2, Qt.DashLine))
             self.scene().addItem(self.temp_connection)
         else:
-            # 移动模式：交给父类处理
+            # Move mode: Handled by the parent class
             self.drag_mode = 'move'
             super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
         if self.drag_mode == 'connect':
-            # 更新临时连接线
+            # Update temporary connection line
             start = self.sceneBoundingRect().center()
             self.temp_connection.setLine(QLineF(start, event.scenePos()))
         else:
-            # 正常移动节点
+            # Normal move node
             super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
         if self.drag_mode == 'connect':
-            # 完成连接创建
+            # Complete the connection creation
             self.scene().removeItem(self.temp_connection)
             self.temp_connection = None
 
-            # 检测目标项
+            # Detection target item
             target_item = self.scene().itemAt(event.scenePos(), QTransform())
             if (isinstance(target_item, JupyterGraphNode) and
                     target_item != self):

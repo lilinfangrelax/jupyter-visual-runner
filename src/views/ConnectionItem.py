@@ -4,6 +4,8 @@ from PySide6.QtCore import QRectF, QLineF, QPointF, Qt
 from PySide6.QtGui import QPolygonF, QColor
 from PySide6.QtWidgets import QGraphicsItem
 
+from src.config.NodeEditorConfig import NodeEditorConfig
+
 
 class ConnectionItem(QGraphicsItem):
     def __init__(self, source, destination):
@@ -26,26 +28,26 @@ class ConnectionItem(QGraphicsItem):
         return super().sceneEventFilter(watched, event)
 
     def boundingRect(self):
-        # 计算包围盒，包含线和箭头
+        # Compute bounding box, including lines and arrows
         start = self.source.sceneBoundingRect().center()
         end = self.destination.sceneBoundingRect().center()
         return QRectF(start, end).normalized().adjusted(-10, -10, 10, 10)
 
     def paint(self, painter, option, widget):
-        # 获取场景中的实际坐标
+        # Get the actual coordinates in the scene
         start_point = self.source.sceneBoundingRect().center()
         end_point = self.destination.sceneBoundingRect().center()
 
-        # 绘制连接线
+        # Draw a connection line
         line = QLineF(start_point, end_point)
-        painter.setPen(QColor("#aaababab"))
+        painter.setPen(NodeEditorConfig.connection_line_color)
         painter.drawLine(line)
 
         center_point = line.center()
 
-        # 计算箭头角度和位置
+        # Calculate arrow angle and position
         angle = math.atan2(-line.dy(), line.dx())
-        arrow_size = 20
+        arrow_size = NodeEditorConfig.connection_line_arrow_size
         arrow_p1 = center_point + QPointF(
             math.sin(angle - math.pi / 3) * arrow_size,
             math.cos(angle - math.pi / 3) * arrow_size
@@ -55,14 +57,10 @@ class ConnectionItem(QGraphicsItem):
             math.cos(angle - math.pi * 2 / 3) * arrow_size
         )
 
-
-
-
-
-        # 绘制箭头
+        # Draw arrow
         arrow_head = QPolygonF()
         arrow_head.append(center_point)
         arrow_head.append(arrow_p1)
         arrow_head.append(arrow_p2)
-        painter.setBrush(QColor("#aaababab"))
+        painter.setBrush(NodeEditorConfig.connection_line_arrow_color)
         painter.drawPolygon(arrow_head)

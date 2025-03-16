@@ -11,6 +11,7 @@ class GraphExecuteController:
     def execute_all(self):
         # 1. Execute all nodes in topological order
         topo_order = graph_util.topological_sort(self.graph)
+        print(topo_order)
         # 2. Execute
         for node_id in topo_order:
             self.execute(self.nodes[node_id])

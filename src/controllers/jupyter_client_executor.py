@@ -1,4 +1,5 @@
 from jupyter_client import KernelManager
+from queue import Empty
 
 class JupyterClientExecutor:
     def __init__(self, kernel_name):
@@ -10,17 +11,26 @@ class JupyterClientExecutor:
 
     def execute(self, code):
         msg_id = self.kernel_client.execute(code)
+        print(msg_id)
         while True:
             try:
                 msg = self.kernel_client.get_iopub_msg(timeout=1)
+                print(f" {code.split('\n')[0]}: {msg}")
                 content = msg["content"]
                 if msg["msg_type"] == "stream" and content["name"] == "stdout":
-                    print(content["text"])
+                    print("stream")
                     break
+                elif msg["msg_type"] == "error":
+                    print("error")
+                    break
+                elif msg["msg_type"] == "status":
+                    if content["execution_state"] == "idle" and msg_id == msg["parent_header"]["msg_id"]:
+                        print("idle")
+                        break
             except KeyboardInterrupt:
                 print("Interrupted by user.")
                 break
-            except:
+            except Empty:
                 # If no messages are available, we'll end up here, but we can just continue and try again.
                 pass
 
