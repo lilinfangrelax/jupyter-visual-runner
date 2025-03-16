@@ -190,6 +190,11 @@ class JupyterGraphNode(QGraphicsItem):
         self._result_textitem.setPlainText(self._result_text)
         self._result_textitem.update()
 
+    def set_title_text(self, text):
+        self._title = text
+        self._titleitem.setPlainText(self._title)
+        self._titleitem.update()
+
     def remove(self):
         confirm = QMessageBox.question(
             None, "Delete Node", "Are you sure you want to delete this node and all its connections?？",
@@ -203,3 +208,4 @@ class JupyterGraphNode(QGraphicsItem):
 
         if self.scene():
             self.scene().removeItem(self)
+
