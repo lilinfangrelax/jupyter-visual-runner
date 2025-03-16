@@ -12,6 +12,7 @@ class JupyterNodeModel(object):
         self.tab_id = ""
         self.last_status = ""
         self.result = ""
+        self.code_changed = False
         super().__init__()
 
     def __str__(self):

@@ -13,7 +13,7 @@ class GraphExecuteController(QObject):
     executor_binding = Signal(str)
     executor_stopped = Signal()
 
-    def __init__(self, graph: dict, nodes: dict,notebook_dir, tab_id, parent=None):
+    def __init__(self, graph: dict, nodes: dict,notebook_dir, tab_id, single_node_id=None,parent=None):
         super().__init__(parent)
         self.graph = graph
         self.nodes = nodes
@@ -21,6 +21,7 @@ class GraphExecuteController(QObject):
         self.kernel_manager = None
         self.kernel_client = None
         self.tab_id = tab_id
+        self.single_node_id = single_node_id
 
     def start(self):
         self.kernel_manager = KernelManager(kernel_name="python3")
@@ -43,11 +44,14 @@ class GraphExecuteController(QObject):
         # self.executor_stopped.emit()
 
 
-    def execute_single_node_and_its_parents(self, node_id):
-        topo_order_node_parent = graph_util.topological_sort_node_parent(self.graph, node_id)
+    def execute_single_node_and_its_parents(self):
+        if self.single_node_id is None:
+            return
+        self.start()
+        topo_order_node_parent = graph_util.topological_sort_node_parent(self.graph, self.single_node_id)
         for order_id in topo_order_node_parent:
             if order_id is not None:
-                self.execute(self.nodes[order_id])
+                self.execute(self.nodes[order_id][0], self.nodes[order_id][1], self.tab_id)
 
     def execute(self, code, uuid, tab_id):
         msg_id = self.kernel_client.execute(code)

@@ -10,3 +10,4 @@ class CustomTab(QWidget):
         self.notebook_path = notebook_path
         self.scene = scene
         self.view = view
+        self.selected_item = None

@@ -16,3 +16,4 @@ def add_cell(notebook, code):
 
 def remove_cell(notebook, index):
     del notebook['cells'][index]
+

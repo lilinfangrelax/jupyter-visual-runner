@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 from PySide6 import QtGui, QtWidgets, QtCore
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QDockWidget, QMainWindow, QListWidget, QTabWidget, QTextEdit, QFrame, QWidget, \
     QVBoxLayout, QApplication, QPushButton
@@ -26,7 +26,6 @@ class JupyterVisualRunner(QMainWindow):
         self.setup_node_sketchpad()
         self.center()
         self.thread1 = None
-
 
     def closeEvent(self, event):
         # Save QDockWidget state
@@ -115,9 +114,7 @@ class JupyterVisualRunner(QMainWindow):
             return
         if isinstance(current_widget, CustomTab):
             notebook = load_notebook(current_widget.notebook_path)
-            # Extract data_model from the JupyterGraphNode in the scene
-            items_data = {item._title:item.to_dict() for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
-            notebook.metadata["scene_data"] = items_data
+
 
             notebook_item_titles = []
             for cell in notebook.cells:
@@ -143,11 +140,23 @@ class JupyterVisualRunner(QMainWindow):
                 if title not in scene_item_titles:
                     remove_cell(notebook, notebook_item_titles.index(title))
 
+            # update code changed
+            for item in current_widget.scene.items():
+                if isinstance(item, JupyterGraphNode):
+                    if item.data_model.code_changed:
+                        title = item.data_model.title
+                        notebook.cells[notebook_item_titles.index(title)].source = item.data_model.code
+                        item.data_model.code_changed = False
 
+
+            # Update the scene data
+            # Extract data_model from the JupyterGraphNode in the scene
+            items_data = {item._title:item.to_dict() for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
+            notebook.metadata["scene_data"] = items_data
 
             # Update the notebook
-            # notebook.metadata["last_modified"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # notebook.metadata["last_modified_by"] = "Jupyter Visual Runner"
+            notebook.metadata["last_modified"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            notebook.metadata["last_modified_by"] = "Jupyter Visual Runner"
 
             save_notebook(notebook, current_widget.notebook_path)
 
@@ -173,6 +182,30 @@ class JupyterVisualRunner(QMainWindow):
             self.worker.executor_process.connect(self.update_process)
             self.worker.executor_binding.connect(self.bind_item_msg_id)
             self.thread1.started.connect(self.worker.execute_all)
+            self.thread1.start()
+
+    def run_single_node_and_parent(self):
+        current_widget = self.center_tabs.currentWidget()
+        if current_widget is None:
+            return
+        if isinstance(current_widget, CustomTab):
+            graph = {item.data_model.title:item.data_model.children for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
+            nodes = {item.data_model.title:[item.data_model.code, item.data_model.uuid] for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
+
+            # Clear the scene
+            for item in current_widget.scene.items():
+                if isinstance(item, JupyterGraphNode):
+                    item.set_default_color()
+            if self.thread1 is not None:
+                self.thread1.quit()
+                self.thread1.wait()
+
+            self.thread1 = QtCore.QThread()
+            self.worker = GraphExecuteController(graph, nodes, current_widget.notebook_dir, current_widget.tab_id, current_widget.scene.selectedItems()[0].data_model.title)
+            self.worker.moveToThread(self.thread1)
+            self.worker.executor_process.connect(self.update_process)
+            self.worker.executor_binding.connect(self.bind_item_msg_id)
+            self.thread1.started.connect(self.worker.execute_single_node_and_its_parents())
             self.thread1.start()
 
     def bind_item_msg_id(self, binding):
@@ -258,18 +291,20 @@ class JupyterVisualRunner(QMainWindow):
         dock1.setWidget(dock1_widget)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock1)
 
-        properties_dock = QDockWidget("Properties", self)
-        properties_dock_widget = QListWidget()
-        properties_dock.setWidget(properties_dock_widget)
-        self.addDockWidget(Qt.RightDockWidgetArea, properties_dock)
+
 
         # node raw code Dock
         raw_code_dock = QDockWidget("Raw", self)
         self.raw_code_widget = QTextEdit()
         self.raw_code_widget.setLineWrapMode(QTextEdit.NoWrap)
-        self.raw_code_widget.setFont(NodeEditorConfig.node_title_font)
         raw_code_dock.setWidget(self.raw_code_widget)
-        self.tabifyDockWidget(properties_dock, raw_code_dock)
+        self.raw_code_widget.setFont(NodeEditorConfig.node_title_font)
+        self.addDockWidget(Qt.RightDockWidgetArea, raw_code_dock)
+
+        properties_dock = QDockWidget("Properties", self)
+        properties_dock_widget = QListWidget()
+        properties_dock.setWidget(properties_dock_widget)
+        self.tabifyDockWidget(raw_code_dock, properties_dock)
 
         # result Dock
         result_dock = QDockWidget("Result", self)
@@ -300,13 +335,22 @@ class JupyterVisualRunner(QMainWindow):
         button_group_layout.setContentsMargins(0, 0, 0, 0)
         add_tab_button = QtWidgets.QPushButton("Add Tab")
         save_tab_button = QtWidgets.QPushButton("Save Tab")
-        run_button = QtWidgets.QPushButton("Run")
+
+        run_button = QtWidgets.QPushButton("Run ALL")
+        run_single_node_button = QtWidgets.QPushButton("Run Single")
+        run_single_node_button.clicked.connect(self.run_single_node_and_parent)
+        save_code_button = QtWidgets.QPushButton("Save Code")
+        save_code_button.clicked.connect(self.update_graph_node_code)
+
+        button_group_layout.addWidget(run_single_node_button)
+        button_group_layout.addWidget(run_button)
+        button_group_layout.addWidget(save_code_button)
         button_group_layout.addWidget(add_tab_button)
         button_group_layout.addWidget(save_tab_button)
-        button_group_layout.addWidget(run_button)
         add_tab_button.clicked.connect(self.add_tab_without_filepath)
         save_tab_button.clicked.connect(self.save_tab)
         run_button.clicked.connect(self.run_tab)
+
         self.addDockWidget(Qt.BottomDockWidgetArea, button_group)
 
 
@@ -334,6 +378,24 @@ class JupyterVisualRunner(QMainWindow):
     def update_widget(self, data_model_dict):
         self.raw_code_widget.setText(data_model_dict["code"])
         self.result_widget.setText(data_model_dict["result"])
+        # set uuid in tooltip
+        self.result_widget.setToolTip(data_model_dict['uuid'])
+
+
+    def update_graph_node_code(self):
+        # get the current tab
+        current_tab = self.center_tabs.currentWidget()
+        if current_tab is None:
+            return
+        if isinstance(current_tab, CustomTab):
+            # get the current scene
+            scene = current_tab.scene
+            # get specific node by uuid
+            for item in scene.items():
+                if isinstance(item, JupyterGraphNode):
+                    if item.data_model.uuid == self.result_widget.toolTip():
+                        item.data_model.code = self.raw_code_widget.toPlainText()
+                        item.data_model.code_changed = True
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
