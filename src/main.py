@@ -162,6 +162,15 @@ class JupyterVisualRunner(QMainWindow):
 
             save_notebook(notebook, current_widget.notebook_path)
 
+    def restore(self):
+        current_widget = self.center_tabs.currentWidget()
+        if current_widget is None:
+            return
+        for item in current_widget.scene.items():
+            if isinstance(item, JupyterGraphNode):
+                item.set_default_color()
+                item.set_default_text()
+
     def run_tab(self):
         current_widget = self.center_tabs.currentWidget()
         if current_widget is None:
@@ -344,9 +353,13 @@ class JupyterVisualRunner(QMainWindow):
         save_code_button = QtWidgets.QPushButton("Save Code")
         save_code_button.clicked.connect(self.update_graph_node_code)
 
+        restore_button = QtWidgets.QPushButton("Restore Status")
+        restore_button.clicked.connect(self.restore)
+
         button_group_layout.addWidget(save_code_button)
         button_group_layout.addWidget(run_single_node_button)
         button_group_layout.addWidget(run_button)
+        button_group_layout.addWidget(restore_button)
         button_group_layout.addWidget(add_tab_button)
         button_group_layout.addWidget(save_tab_button)
         add_tab_button.clicked.connect(self.add_tab_without_filepath)

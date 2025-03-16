@@ -58,6 +58,7 @@ class JupyterGraphNode(QGraphicsItem):
     def remove_connection(self, connection):
         if connection in self.connections:
             self.connections.remove(connection)
+            self.data_model.children.remove(connection.destination.data_model.title)
 
     def add_connection(self, connection):
         self.connections.append(connection)
@@ -208,4 +209,9 @@ class JupyterGraphNode(QGraphicsItem):
 
         if self.scene():
             self.scene().removeItem(self)
+
+    def set_default_text(self):
+        self._result_text = ""
+        self._result_textitem.setPlainText(self._result_text)
+        self._result_textitem.update()
 
