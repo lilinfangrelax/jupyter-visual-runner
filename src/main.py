@@ -18,12 +18,14 @@ class JupyterVisualRunner(QMainWindow):
         super().__init__()
         self.setup_node_sketchpad()
         self.center()
+        self.thread1 = None
 
     def closeEvent(self, event):
         # Save QDockWidget state
         settings = QSettings("Jupyter Visual Runner", "Jupyter Visual Runner")
         settings.setValue('windowState', self.saveState())
 
+    # MVP: 200 line to restructure the code
     def add_tab(self):
         self.scene2 = NodeSketchpadScene()
         self.view2 = NodeSketchpadView(self.scene2, self)
@@ -88,15 +90,16 @@ class JupyterVisualRunner(QMainWindow):
         for item in self.scene2.items():
             if isinstance(item, JupyterGraphNode):
                 item.set_default_color()
-        self.thread = None
-        self.worker = None
-        self.thread = QtCore.QThread()
+        if self.thread1 is not None:
+            self.thread1.quit()
+            self.thread1.wait()
+        self.thread1 = QtCore.QThread()
         self.worker = GraphExecuteController(graph, nodes)
-        self.worker.moveToThread(self.thread)
+        self.worker.moveToThread(self.thread1)
         self.worker.executor_process.connect(self.update_process)
         self.worker.executor_binding.connect(self.bind_item_msg_id)
-        self.thread.started.connect(self.worker.execute_all)
-        self.thread.start()
+        self.thread1.started.connect(self.worker.execute_all)
+        self.thread1.start()
 
     def bind_item_msg_id(self, binding):
         msg_id = binding.split(":")[0]
@@ -122,7 +125,7 @@ class JupyterVisualRunner(QMainWindow):
                         item.data_model.last_status = "execute_input"
                     elif status_str == "status:idle" and item.data_model.last_status == "status:busy":
                         return
-                    elif status_str == "status:idle" and item.data_model.last_status != "error" and "  print" not in item.data_model.code :
+                    elif status_str == "status:idle" and item.data_model.last_status != "error":
                         color = QColor('green')
                         item.set_color(color)
                         item.data_model.last_status = "idle"
@@ -131,8 +134,6 @@ class JupyterVisualRunner(QMainWindow):
                         item.set_color(color)
                         item.data_model.last_status = "error"
                     elif status_str.startswith("stream"):
-                        color = QColor('green')
-                        item.set_color(color)
                         item.data_model.last_status = "stream"
 
 

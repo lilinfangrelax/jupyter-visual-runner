@@ -1,4 +1,6 @@
 from queue import Empty
+
+from IPython.external.qt_for_kernel import QtCore
 from PySide6.QtCore import QObject, Signal
 from jupyter_client import KernelManager
 from src.utils import graph_util
@@ -82,3 +84,5 @@ class GraphExecuteController(QObject):
         if self.kernel_manager:
             self.kernel_manager.shutdown_kernel()
             self.kernel_manager = None
+
+
