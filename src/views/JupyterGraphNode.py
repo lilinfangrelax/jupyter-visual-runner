@@ -1,16 +1,18 @@
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem, QGraphicsLineItem
 from PySide6.QtGui import QBrush, QPen, QColor, QPolygonF, QPainterPath, QFont, QTransform
 from PySide6.QtCore import Qt, QRectF, QLineF
-
+import uuid
 from src.config.NodeEditorConfig import NodeEditorConfig
 from src.models.JupyterNodeModel import JupyterNodeModel
-from src.views.ConnectionItem import ConnectionItem
+
 
 
 class JupyterGraphNode(QGraphicsItem):
-    def __init__(self, title, code="", parent=None):
+    def __init__(self, title, code, parent=None):
         super().__init__(parent)
         self.data_model = JupyterNodeModel(title, code)
+        if self.data_model.uuid is None:
+            self.data_model.uuid = str(uuid.uuid4())
 
         self._node_width = NodeEditorConfig.node_width
         self._node_height = NodeEditorConfig.node_height
@@ -78,6 +80,7 @@ class JupyterGraphNode(QGraphicsItem):
             painter.setBrush(Qt.NoBrush)
             painter.drawPath(node_outline)
 
+
     def init_title(self):
         self._titleitem = QGraphicsTextItem(self)
         self._titleitem.setPlainText(self._title)
@@ -118,6 +121,7 @@ class JupyterGraphNode(QGraphicsItem):
             target_item = self.scene().itemAt(event.scenePos(), QTransform())
             if (isinstance(target_item, JupyterGraphNode) and
                     target_item != self):
+                from src.views.ConnectionItem import ConnectionItem
                 connection = ConnectionItem(self, target_item)
                 self.scene().addItem(connection)
 
@@ -129,3 +133,15 @@ class JupyterGraphNode(QGraphicsItem):
         self.data_model.x  = self.pos().x()
         self.data_model.y  = self.pos().y()
         return self.data_model.to_dict()
+
+    def set_color(self, color):
+        # self._pen.setColor(color)
+        # set node background color
+        self._background_color = color
+
+        self.update()
+
+    def set_default_color(self):
+        self._background_color = NodeEditorConfig.node_background_color
+        self.update()
+

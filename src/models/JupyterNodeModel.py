@@ -7,6 +7,9 @@ class JupyterNodeModel(object):
         self.children = []
         self.x = 0
         self.y = 0
+        self.uuid = None
+        self.msg_id = ""
+        self.last_status = ""
         super().__init__()
 
     def __str__(self):
@@ -18,7 +21,8 @@ class JupyterNodeModel(object):
             "code": self.code,
             "source": self.source,
             "destination": self.destination,
-            "children": [child.to_dict() for child in self.children],
+            "children": self.children,
             "x": self.x,
-            "y": self.y
+            "y": self.y,
+            "uuid": self.uuid
             }

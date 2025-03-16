@@ -1,3 +1,4 @@
+import datetime
 import sys
 
 from PySide6 import QtGui, QtWidgets, QtCore
@@ -6,6 +7,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QDockWidget, QMainWindow, QListWidget, QTabWidget, QTextEdit, QFrame, QWidget, \
     QVBoxLayout, QApplication
 
+from src.controllers.graph_execute_controller import GraphExecuteController
 from src.models.JupyterNodeModel import JupyterNodeModel
 from src.utils.ipynb_file_util import load_notebook, save_notebook
 from src.views.JupyterVisualRunnerEditor import *
@@ -53,13 +55,13 @@ class JupyterVisualRunner(QMainWindow):
             if node.title in graph_nodes.keys():
                 rect1 = graph_nodes[nodes[index].title]
             else:
-                rect1 = JupyterGraphNode(nodes[index].title)
+                rect1 = JupyterGraphNode(nodes[index].title, nodes[index].code)
                 graph_nodes[rect1._title] = rect1
                 rect1.setPos(index*0, 0)
             if nodes[index+1].title in graph_nodes.keys():
                 rect2 = graph_nodes[nodes[index+1].title]
             else:
-                rect2 = JupyterGraphNode(nodes[index+1].title)
+                rect2 = JupyterGraphNode(nodes[index+1].title, nodes[index+1].code)
                 graph_nodes[rect2._title] = rect2
                 rect2.setPos((index+1)*300, 0)
             self.scene2.addItem(rect1)
@@ -68,8 +70,8 @@ class JupyterVisualRunner(QMainWindow):
             if node.title in items_data.keys():
                 graph_nodes[node.title].setPos(items_data[node.title].x, items_data[node.title].y)
                 if items_data[node.title].children != []:
-                    for child in items_data[node.title].children:
-                        connection = ConnectionItem(graph_nodes[node.title], graph_nodes[child.title])
+                    for child_title in items_data[node.title].children:
+                        connection = ConnectionItem(graph_nodes[node.title], graph_nodes[child_title])
                         self.scene2.addItem(connection)
 
     def save_tab(self):
@@ -78,6 +80,66 @@ class JupyterVisualRunner(QMainWindow):
         items_data = {item._title:item.to_dict() for item in self.scene2.items() if isinstance(item, JupyterGraphNode)}
         notebook.metadata["scene_data"] = items_data
         save_notebook(notebook, 'D:\\Dev\\GitHub\\ideas\\scripts\\获取邮箱账号注册过的所有网站\\获取邮箱账号注册过的所有网站.ipynb')
+
+    def run_tab(self):
+        graph = {item.data_model.title:item.data_model.children for item in self.scene2.items() if isinstance(item, JupyterGraphNode)}
+        nodes = {item.data_model.title:[item.data_model.code, item.data_model.uuid] for item in self.scene2.items() if isinstance(item, JupyterGraphNode)}
+
+        for item in self.scene2.items():
+            if isinstance(item, JupyterGraphNode):
+                item.set_default_color()
+        self.thread = None
+        self.worker = None
+        self.thread = QtCore.QThread()
+        self.worker = GraphExecuteController(graph, nodes)
+        self.worker.moveToThread(self.thread)
+        self.worker.executor_process.connect(self.update_process)
+        self.worker.executor_binding.connect(self.bind_item_msg_id)
+        self.thread.started.connect(self.worker.execute_all)
+        self.thread.start()
+
+    def bind_item_msg_id(self, binding):
+        msg_id = binding.split(":")[0]
+        item_id = binding.split(":")[1]
+        self.logger_widget.append(binding)
+        for item in self.scene2.items():
+            if isinstance(item, JupyterGraphNode):
+                if item.data_model.uuid == item_id:
+                    item.data_model.msg_id = msg_id
+
+    def update_process(self, process):
+        for item in self.scene2.items():
+            if isinstance(item, JupyterGraphNode):
+                if item.data_model.msg_id == process.split(":")[0]:
+                    status_str = process.replace(f"{item.data_model.msg_id}:", "")
+                    if status_str == "status:busy":
+                        color = QColor('yellow')
+                        item.set_color(color)
+                        item.data_model.last_status = "status:busy"
+                    if status_str.startswith("execute_input"):
+                        color = QColor('yellow')
+                        item.set_color(color)
+                        item.data_model.last_status = "execute_input"
+                    elif status_str == "status:idle" and item.data_model.last_status == "status:busy":
+                        return
+                    elif status_str == "status:idle" and item.data_model.last_status != "error" and "  print" not in item.data_model.code :
+                        color = QColor('green')
+                        item.set_color(color)
+                        item.data_model.last_status = "idle"
+                    elif status_str.startswith("error"):
+                        color = QColor('red')
+                        item.set_color(color)
+                        item.data_model.last_status = "error"
+                    elif status_str.startswith("stream"):
+                        color = QColor('green')
+                        item.set_color(color)
+                        item.data_model.last_status = "stream"
+
+
+
+
+                    print(f"{datetime.datetime.now()} {item.data_model.title}: {status_str}")
+        self.logger_widget.append(process)
 
 
     def setup_node_sketchpad(self):
@@ -91,10 +153,13 @@ class JupyterVisualRunner(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         add_tab_button = QtWidgets.QPushButton("Add Tab")
         save_tab_button = QtWidgets.QPushButton("Save Tab")
+        run_button = QtWidgets.QPushButton("Run")
         layout.addWidget(add_tab_button)
         layout.addWidget(save_tab_button)
+        layout.addWidget(run_button)
         add_tab_button.clicked.connect(self.add_tab)
         save_tab_button.clicked.connect(self.save_tab)
+        run_button.clicked.connect(self.run_tab)
         self.center_tabs.addTab(tab_container, "Homepage")
         self.setCentralWidget(self.center_tabs)
 
@@ -110,13 +175,14 @@ class JupyterVisualRunner(QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, dock2)
 
         dock3 = QDockWidget("Logger", self)
-        dock3_widget = QTextEdit()
-        dock3_widget.setReadOnly(True)
-        dock3_widget.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
+        self.logger_widget = QTextEdit()
+        self.logger_widget.setReadOnly(True)
+        self.logger_widget.setLineWrapMode(QTextEdit.NoWrap)
+        self.logger_widget.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
         # Solve problem: there is a blue line in the bottom of QTextEdit
         # https://stackoverflow.com/questions/16436058/how-to-make-qtextedit-with-no-visible-border
-        dock3_widget.setFrameStyle(QFrame.NoFrame)
-        dock3.setWidget(dock3_widget)
+        self.logger_widget.setFrameStyle(QFrame.NoFrame)
+        dock3.setWidget(self.logger_widget)
         dock3.setMinimumHeight(150)
         self.addDockWidget(Qt.BottomDockWidgetArea, dock3)
 

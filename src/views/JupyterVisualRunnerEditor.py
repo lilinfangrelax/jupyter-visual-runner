@@ -141,6 +141,6 @@ class NodeSketchpadView(QGraphicsView):
         self._drag_mode = False
 
     def right_click_add_node(self, title, mouse_pos):
-        item = JupyterGraphNode(title)
+        item = JupyterGraphNode(title, "")
         self._scene.addItem(item)
         item.setPos(mouse_pos)

@@ -10,4 +10,4 @@ Execute and manage Jupyter Notebooks in the visual runner.
   - [ ] show node detail(Python row code)
   - [ ] show node properties(Python variables)
   - [ ] show node result(Python code result)
-- [ ] load jupyter notebook(.nbpy)
+- [x] load jupyter notebook(.nbpy)

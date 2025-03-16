@@ -5,14 +5,15 @@ from PySide6.QtGui import QPolygonF, QColor
 from PySide6.QtWidgets import QGraphicsItem
 
 from src.config.NodeEditorConfig import NodeEditorConfig
+from src.views.JupyterGraphNode import JupyterGraphNode
 
 
 class ConnectionItem(QGraphicsItem):
-    def __init__(self, source, destination):
+    def __init__(self, source: 'JupyterGraphNode', destination: 'JupyterGraphNode'):
         super().__init__()
         self.source = source
         self.destination = destination
-        self.source.data_model.children.append(self.destination)
+        self.source.data_model.children.append(self.destination.data_model.title)
 
         self.setZValue(-1)
 
