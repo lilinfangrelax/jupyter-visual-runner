@@ -7,7 +7,7 @@ from PySide6 import QtGui, QtWidgets, QtCore
 from PySide6.QtCore import QSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QDockWidget, QMainWindow, QListWidget, QTabWidget, QTextEdit, QFrame, QWidget, \
-    QVBoxLayout, QApplication
+    QVBoxLayout, QApplication, QPushButton
 
 from src.controllers.graph_execute_controller import GraphExecuteController
 from src.models.JupyterNodeModel import JupyterNodeModel
@@ -19,23 +19,31 @@ from src.views.JupyterVisualRunnerEditor import *
 class JupyterVisualRunner(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.settings = QSettings("Jupyter Visual Runner", "Jupyter Visual Runner")
+        self.recent_files = self.settings.value("RecentFiles", [])
+        if self.recent_files is None:
+            self.recent_files = []
         self.setup_node_sketchpad()
         self.center()
         self.thread1 = None
 
+
     def closeEvent(self, event):
         # Save QDockWidget state
-        settings = QSettings("Jupyter Visual Runner", "Jupyter Visual Runner")
-        settings.setValue('windowState', self.saveState())
+        self.settings.setValue('windowState', self.saveState())
 
-    # MVP: 200 line to restructure the code
-    def add_tab(self):
-        """ Add a new tab"""
+    def add_tab_without_filepath(self):
         # 1. Open file chooser to get the .ipynb file path
         file_path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open File", "", "Jupyter Notebook (*.ipynb)")
         if file_path == '':
             return
+        self.recent_files.append(file_path)
+        settings.setValue("RecentFiles", self.recent_files)
+        self.add_tab(file_path)
 
+    # MVP: 200 line to restructure the code
+    def add_tab(self, file_path):
+        """ Add a new tab"""
         # 2. Init tab
         tab_id = str(uuid.uuid1())
         notebook_dir = Path(file_path).parent.resolve()
@@ -198,12 +206,19 @@ class JupyterVisualRunner(QMainWindow):
         self.setWindowIcon(QtGui.QIcon("public/icon.png"))
 
         self.center_tabs = QTabWidget()
-        tab_container = QWidget()
-        layout = QVBoxLayout(tab_container)
+        homepage = QWidget()
+        layout = QVBoxLayout(homepage)
         layout.setContentsMargins(0, 0, 0, 0)
-
-        self.center_tabs.addTab(tab_container, "Homepage")
+        self.center_tabs.addTab(homepage, "Homepage")
         self.setCentralWidget(self.center_tabs)
+        # Show all recent files and filepath in the homepage, and clickable
+        if self.recent_files is not None:
+            for file_path in self.recent_files:
+                recent_file_button = QPushButton(file_path)
+                layout.addWidget(recent_file_button)
+                recent_file_button.clicked.connect(lambda _, path=file_path: self.add_tab(path))
+
+
 
 
         dock1 = QDockWidget("Browser", self)
@@ -228,6 +243,7 @@ class JupyterVisualRunner(QMainWindow):
         result_dock = QDockWidget("Result", self)
         self.result_widget = QTextEdit()
         self.result_widget.setReadOnly(True)
+        self.result_widget.setFont(NodeEditorConfig.node_title_font)
         self.result_widget.setLineWrapMode(QTextEdit.NoWrap)
         result_dock.setWidget(self.result_widget)
         self.addDockWidget(Qt.RightDockWidgetArea, result_dock)
@@ -256,7 +272,7 @@ class JupyterVisualRunner(QMainWindow):
         button_group_layout.addWidget(add_tab_button)
         button_group_layout.addWidget(save_tab_button)
         button_group_layout.addWidget(run_button)
-        add_tab_button.clicked.connect(self.add_tab)
+        add_tab_button.clicked.connect(self.add_tab_without_filepath)
         save_tab_button.clicked.connect(self.save_tab)
         run_button.clicked.connect(self.run_tab)
         self.addDockWidget(Qt.BottomDockWidgetArea, button_group)
