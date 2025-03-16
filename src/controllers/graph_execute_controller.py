@@ -4,6 +4,7 @@ from IPython.external.qt_for_kernel import QtCore
 from PySide6.QtCore import QObject, Signal
 from jupyter_client import KernelManager
 from src.utils import graph_util
+from src.utils.str_util import format_jupyter_traceback
 
 
 class GraphExecuteController(QObject):
@@ -55,14 +56,14 @@ class GraphExecuteController(QObject):
             try:
                 msg = self.kernel_client.get_iopub_msg(timeout=0.1)
                 # self.executor_process.emit(f" {code.split('\n')[0]}: {msg}")
-                # print(f"{code.split('\n')[0]}: {msg}")
+                print(f"{code.split('\n')[0]}: {msg}")
                 content = msg["content"]
                 parent_msg_id = msg["parent_header"]["msg_id"]
                 if msg["msg_type"] == "stream" and content["name"] == "stdout":
                     self.executor_process.emit(f"{parent_msg_id}#{tab_id}:stream:{content['text']}")
                     # break
                 elif msg["msg_type"] == "error":
-                    self.executor_process.emit(f"{parent_msg_id}#{tab_id}:error_:{content['ename']}")
+                    self.executor_process.emit(f"{parent_msg_id}#{tab_id}:error_:{content['ename']}: {content['evalue']}\n{format_jupyter_traceback(content['traceback'])}")
                     # break
                 elif msg["msg_type"] == "execute_input":
                     self.executor_process.emit(f"{parent_msg_id}#{tab_id}:execute_input: content['code']")

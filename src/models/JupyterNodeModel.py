@@ -11,6 +11,7 @@ class JupyterNodeModel(object):
         self.msg_id = ""
         self.tab_id = ""
         self.last_status = ""
+        self.result = ""
         super().__init__()
 
     def __str__(self):
@@ -25,5 +26,6 @@ class JupyterNodeModel(object):
             "children": self.children,
             "x": self.x,
             "y": self.y,
+            "result": self.result,
             "uuid": self.uuid
             }

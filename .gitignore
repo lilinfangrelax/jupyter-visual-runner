@@ -176,3 +176,4 @@ cython_debug/
 /.idea/inspectionProfiles/profiles_settings.xml
 /tests/email_metadata.db
 /src/email_metadata.db
+/src/dts.db

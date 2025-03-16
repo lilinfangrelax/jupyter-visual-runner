@@ -1,18 +1,23 @@
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem, QGraphicsLineItem
 from PySide6.QtGui import QBrush, QPen, QColor, QPolygonF, QPainterPath, QFont, QTransform
-from PySide6.QtCore import Qt, QRectF, QLineF
+from PySide6.QtCore import Qt, QRectF, QLineF, Signal
 import uuid
 from src.config.NodeEditorConfig import NodeEditorConfig
+from src.controllers.item_signals import ItemSignals
 from src.models.JupyterNodeModel import JupyterNodeModel
 
 
 
 class JupyterGraphNode(QGraphicsItem):
+    clicked = Signal(dict)
+
     def __init__(self, title, code, parent=None):
         super().__init__(parent)
         self.data_model = JupyterNodeModel(title, code)
         if self.data_model.uuid is None:
             self.data_model.uuid = str(uuid.uuid4())
+
+        self.signals = ItemSignals()
 
         self._node_width = NodeEditorConfig.node_width
         self._node_height = NodeEditorConfig.node_height
@@ -34,8 +39,21 @@ class JupyterGraphNode(QGraphicsItem):
         self._title_brush_back = NodeEditorConfig.node_title_brush_back
         self.init_title()
 
+        # Create result text
+        self._result_text = ""
+        self._result_text_color = NodeEditorConfig.node_title_color
+        self._result_text_font = NodeEditorConfig.node_title_font
+        self._result_text_height = NodeEditorConfig.node_title_height
+        self._result_text_padding = NodeEditorConfig.node_title_padding
+        self.init_result_text()
+
         self.drag_mode = None  # 'move' or 'connect'
         self.temp_connection = None
+
+        self.setAcceptHoverEvents(True)
+        self.setFlag(QGraphicsItem.ItemIsSelectable, True)
+        self.setFlag(QGraphicsItem.ItemIsFocusable, True)
+
 
     def addObserver(self, observer):
         self.observers.append(observer)
@@ -98,6 +116,10 @@ class JupyterGraphNode(QGraphicsItem):
             self.temp_connection.setPen(QPen(Qt.white, 2, Qt.DashLine))
             self.scene().addItem(self.temp_connection)
         else:
+            if event.button() == Qt.LeftButton:
+                # Select node
+                self.signals.nodeClicked.emit(self.to_dict())
+                event.accept()
             # Move mode: Handled by the parent class
             self.drag_mode = 'move'
             super().mousePressEvent(event)
@@ -145,3 +167,14 @@ class JupyterGraphNode(QGraphicsItem):
         self._background_color = NodeEditorConfig.node_background_color
         self.update()
 
+    def init_result_text(self):
+        self._result_textitem = QGraphicsTextItem(self)
+        self._result_textitem.setPlainText(self._result_text)
+        self._result_textitem.setFont(self._result_text_font)
+        self._result_textitem.setDefaultTextColor(self._result_text_color)
+        self._result_textitem.setPos(-self._node_width / 2 + self._result_text_padding, -self._node_height / 2 + self._result_text_padding + self._title_height + self._title_padding)
+
+    def set_result_text(self, text):
+        self._result_text = text
+        self._result_textitem.setPlainText(self._result_text)
+        self._result_textitem.update()

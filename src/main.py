@@ -49,6 +49,7 @@ class JupyterVisualRunner(QMainWindow):
         layout.addWidget(view)
         self.center_tabs.addTab(tab_container, title)
 
+
         # 3. Load the .ipynb file
         notebook = load_notebook(file_path)
         if notebook.metadata.get("scene_data"):
@@ -75,12 +76,16 @@ class JupyterVisualRunner(QMainWindow):
                 rect1 = JupyterGraphNode(nodes[index].title, nodes[index].code)
                 graph_nodes[rect1._title] = rect1
                 rect1.setPos(index*0, 0)
+                rect1.signals.nodeClicked.connect(self.update_widget)
+
             if nodes[index+1].title in graph_nodes.keys():
                 rect2 = graph_nodes[nodes[index+1].title]
             else:
                 rect2 = JupyterGraphNode(nodes[index+1].title, nodes[index+1].code)
                 graph_nodes[rect2._title] = rect2
                 rect2.setPos((index+1)*300, 0)
+                rect2.signals.nodeClicked.connect(self.update_widget)
+
             scene.addItem(rect1)
             scene.addItem(rect2)
 
@@ -92,6 +97,8 @@ class JupyterVisualRunner(QMainWindow):
                     for child_title in items_data[node.title].children:
                         connection = ConnectionItem(graph_nodes[node.title], graph_nodes[child_title])
                         scene.addItem(connection)
+
+        self.center_tabs.setCurrentWidget(tab_container)
 
     def save_tab(self):
         current_widget = self.center_tabs.currentWidget()
@@ -171,8 +178,12 @@ class JupyterVisualRunner(QMainWindow):
                                     color = QColor('red')
                                     item.set_color(color)
                                     item.data_model.last_status = "error"
+                                    item.set_result_text(status_str.replace("error_:","").split("\n")[0])
+                                    item.data_model.result = status_str.replace("error_:", "")
                                 elif status_str.startswith("stream"):
                                     item.data_model.last_status = "stream"
+                                    item.set_result_text(status_str.replace('stream:', "").split("\n")[0])
+                                    item.data_model.result = status_str.replace("stream:", "")
 
 
 
@@ -200,10 +211,27 @@ class JupyterVisualRunner(QMainWindow):
         dock1.setWidget(dock1_widget)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock1)
 
-        dock2 = QDockWidget("Properties", self)
-        dock2_widget = QListWidget()
-        dock2.setWidget(dock2_widget)
-        self.addDockWidget(Qt.RightDockWidgetArea, dock2)
+        properties_dock = QDockWidget("Properties", self)
+        properties_dock_widget = QListWidget()
+        properties_dock.setWidget(properties_dock_widget)
+        self.addDockWidget(Qt.RightDockWidgetArea, properties_dock)
+
+        # node raw code Dock
+        raw_code_dock = QDockWidget("Raw", self)
+        self.raw_code_widget = QTextEdit()
+        self.raw_code_widget.setLineWrapMode(QTextEdit.NoWrap)
+        self.raw_code_widget.setFont(NodeEditorConfig.node_title_font)
+        raw_code_dock.setWidget(self.raw_code_widget)
+        self.tabifyDockWidget(properties_dock, raw_code_dock)
+
+        # result Dock
+        result_dock = QDockWidget("Result", self)
+        self.result_widget = QTextEdit()
+        self.result_widget.setReadOnly(True)
+        self.result_widget.setLineWrapMode(QTextEdit.NoWrap)
+        result_dock.setWidget(self.result_widget)
+        self.addDockWidget(Qt.RightDockWidgetArea, result_dock)
+
 
         dock3 = QDockWidget("Logger", self)
         self.logger_widget = QTextEdit()
@@ -234,6 +262,8 @@ class JupyterVisualRunner(QMainWindow):
         self.addDockWidget(Qt.BottomDockWidgetArea, button_group)
 
 
+
+
         # Temporarily hide this widget
         # dock4 = QDockWidget("Result", self)
         web_view = QWebEngineView()
@@ -253,6 +283,9 @@ class JupyterVisualRunner(QMainWindow):
 
         self.move(window_geometry.topLeft())
 
+    def update_widget(self, data_model_dict):
+        self.raw_code_widget.setText(data_model_dict["code"])
+        self.result_widget.setText(data_model_dict["result"])
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
