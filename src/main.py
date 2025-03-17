@@ -142,6 +142,10 @@ class JupyterVisualRunner(QMainWindow):
                 if title not in scene_item_titles:
                     remove_cell(notebook, notebook_item_titles.index(title))
 
+
+            notebook_item_titles = []
+            for cell in notebook.cells:
+                notebook_item_titles.append(cell.source.split('\n')[0])
             # update code changed
             for item in current_widget.scene.items():
                 if isinstance(item, JupyterGraphNode):
@@ -153,7 +157,7 @@ class JupyterVisualRunner(QMainWindow):
 
             # Update the scene data
             # Extract data_model from the JupyterGraphNode in the scene
-            items_data = {item._title:item.to_dict() for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
+            items_data = {item.data_model.title:item.to_dict() for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
             notebook.metadata["scene_data"] = items_data
 
             # Update the notebook
@@ -170,6 +174,7 @@ class JupyterVisualRunner(QMainWindow):
             if isinstance(item, JupyterGraphNode):
                 item.set_default_color()
                 item.set_default_text()
+                item.data_model.last_status = ""
 
     def run_tab(self):
         current_widget = self.center_tabs.currentWidget()
@@ -179,10 +184,7 @@ class JupyterVisualRunner(QMainWindow):
             graph = {item.data_model.title:item.data_model.children for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
             nodes = {item.data_model.title:[item.data_model.code, item.data_model.uuid] for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
 
-            # Clear the scene
-            for item in current_widget.scene.items():
-                if isinstance(item, JupyterGraphNode):
-                    item.set_default_color()
+            self.restore()
             if self.thread1 is not None:
                 self.thread1.quit()
                 self.thread1.wait()
@@ -204,9 +206,7 @@ class JupyterVisualRunner(QMainWindow):
             nodes = {item.data_model.title:[item.data_model.code, item.data_model.uuid] for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
 
             # Clear the scene
-            for item in current_widget.scene.items():
-                if isinstance(item, JupyterGraphNode):
-                    item.set_default_color()
+            self.restore()
             if self.thread1 is not None:
                 self.thread1.quit()
                 self.thread1.wait()
@@ -410,9 +410,9 @@ class JupyterVisualRunner(QMainWindow):
                 if isinstance(item, JupyterGraphNode):
                     if item.data_model.uuid == self.result_widget.toolTip():
                         item.data_model.code = self.raw_code_widget.toPlainText()
+                        item.data_model.code_changed = True
                         if item.data_model.code.split('\n')[0] != item.data_model.title:
                             self.item_title_changed(item)
-                        item.data_model.code_changed = True
 
     def item_title_changed(self, item):
         old_title =  item.data_model.title
