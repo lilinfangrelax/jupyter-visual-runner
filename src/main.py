@@ -177,12 +177,12 @@ class JupyterVisualRunner(QMainWindow):
                 item.data_model.last_status = ""
 
     def run_tab(self):
-        current_widget = self.center_tabs.currentWidget()
-        if current_widget is None:
+        current_tab_widget = self.center_tabs.currentWidget()
+        if current_tab_widget is None:
             return
-        if isinstance(current_widget, CustomTab):
-            graph = {item.data_model.title:item.data_model.children for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
-            nodes = {item.data_model.title:[item.data_model.code, item.data_model.uuid] for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
+        if isinstance(current_tab_widget, CustomTab):
+            graph = {item.data_model.title:item.data_model.children for item in current_tab_widget.scene.items() if isinstance(item, JupyterGraphNode)}
+            nodes = {item.data_model.title:[item.data_model.code, item.data_model.uuid] for item in current_tab_widget.scene.items() if isinstance(item, JupyterGraphNode)}
 
             self.restore()
             if self.thread1 is not None:
@@ -190,7 +190,7 @@ class JupyterVisualRunner(QMainWindow):
                 self.thread1.wait()
 
             self.thread1 = QtCore.QThread()
-            self.worker = GraphExecuteController(graph, nodes, current_widget.notebook_dir, current_widget.tab_id)
+            self.worker = GraphExecuteController(graph, nodes, current_tab_widget.notebook_dir, current_tab_widget.tab_id)
             self.worker.moveToThread(self.thread1)
             self.worker.executor_process.connect(self.update_process)
             self.worker.executor_binding.connect(self.bind_item_msg_id)
@@ -198,12 +198,13 @@ class JupyterVisualRunner(QMainWindow):
             self.thread1.start()
 
     def run_single_node_and_parent(self):
-        current_widget = self.center_tabs.currentWidget()
-        if current_widget is None:
+        """ Run the selected node and its parents"""
+        current_tab_widget = self.center_tabs.currentWidget()
+        if current_tab_widget is None:
             return
-        if isinstance(current_widget, CustomTab):
-            graph = {item.data_model.title:item.data_model.children for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
-            nodes = {item.data_model.title:[item.data_model.code, item.data_model.uuid] for item in current_widget.scene.items() if isinstance(item, JupyterGraphNode)}
+        if isinstance(current_tab_widget, CustomTab):
+            graph = {item.data_model.title: item.data_model.children for item in current_tab_widget.scene.items() if isinstance(item, JupyterGraphNode)}
+            nodes = {item.data_model.title:[item.data_model.code, item.data_model.uuid] for item in current_tab_widget.scene.items() if isinstance(item, JupyterGraphNode)}
 
             # Clear the scene
             self.restore()
@@ -212,11 +213,12 @@ class JupyterVisualRunner(QMainWindow):
                 self.thread1.wait()
 
             self.thread1 = QtCore.QThread()
-            self.worker = GraphExecuteController(graph, nodes, current_widget.notebook_dir, current_widget.tab_id, current_widget.scene.selectedItems()[0].data_model.title)
+            self.worker = GraphExecuteController(graph, nodes, current_tab_widget.notebook_dir, current_tab_widget.tab_id, current_tab_widget.scene.selectedItems()[0].data_model.title)
             self.worker.moveToThread(self.thread1)
             self.worker.executor_process.connect(self.update_process)
             self.worker.executor_binding.connect(self.bind_item_msg_id)
-            self.thread1.started.connect(self.worker.execute_single_node_and_its_parents())
+            # When using connect, you don't need to add '()' after the function.
+            self.thread1.started.connect(self.worker.execute_single_node_and_its_parents)
             self.thread1.start()
 
     def bind_item_msg_id(self, binding):
